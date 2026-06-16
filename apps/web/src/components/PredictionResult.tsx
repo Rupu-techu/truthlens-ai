@@ -3,6 +3,7 @@ interface PredictionResultProps {
   confidence: number
 }
 
+// Renders a verdict card with a red warning state for fake news and a green success state for real news.
 function WarningIcon() {
   return (
     <svg
@@ -45,6 +46,7 @@ function PredictionResult({ prediction, confidence }: PredictionResultProps) {
   const isFake = normalizedPrediction === 'fake'
   const isReal = normalizedPrediction === 'real'
   const safeConfidence = Math.max(0, Math.min(confidence, 100))
+  const displayLabel = isFake ? 'Fake News' : isReal ? 'Real News' : prediction
 
   const themeClasses = isFake
     ? {
@@ -79,7 +81,7 @@ function PredictionResult({ prediction, confidence }: PredictionResultProps) {
               Prediction
             </p>
             <h3 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
-              {isFake || isReal ? prediction : 'Unknown'}
+              {displayLabel}
             </h3>
           </div>
         </div>

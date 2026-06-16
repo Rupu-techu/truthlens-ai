@@ -3,9 +3,9 @@ import type { FormEvent } from 'react'
 
 import {
   predictNews,
-  type PredictionResponse,
   PredictionServiceError,
 } from '../services/predictionService'
+import type { PredictionResponse } from '../types/prediction'
 
 interface PredictionFormProps {
   onResult: (result: PredictionResponse) => void

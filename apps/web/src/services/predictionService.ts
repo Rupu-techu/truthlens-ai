@@ -1,11 +1,7 @@
-export interface PredictionRequest {
-  text: string
-}
-
-export interface PredictionResponse {
-  prediction: string
-  confidence: number
-}
+import type {
+  PredictionRequest,
+  PredictionResponse,
+} from '../types/prediction'
 
 export class PredictionServiceError extends Error {
   constructor(message: string) {
@@ -94,4 +90,5 @@ export async function predictNews(
   }
 }
 
+export type { PredictionRequest, PredictionResponse }
 export default predictNews
