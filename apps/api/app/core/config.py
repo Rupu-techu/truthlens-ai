@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     database_url: str = f"sqlite:///{(PROJECT_ROOT / 'truthlens.db').as_posix()}"
     tfidf_vectorizer_path: Path = MODEL_DIR / "tfidf_vectorizer.pkl"
     logistic_regression_model_path: Path = MODEL_DIR / "logistic_regression_model.pkl"
+    cors_allow_origins: list[str] = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
 
     model_config = SettingsConfigDict(
         env_file=".env",
