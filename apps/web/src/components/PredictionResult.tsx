@@ -3,7 +3,6 @@ interface PredictionResultProps {
   confidence: number
 }
 
-// Renders a verdict card with a red warning state for fake news and a green success state for real news.
 function WarningIcon() {
   return (
     <svg
@@ -41,6 +40,7 @@ function CheckIcon() {
   )
 }
 
+// PredictionResult translates the raw API response into a polished verdict card.
 function PredictionResult({ prediction, confidence }: PredictionResultProps) {
   const normalizedPrediction = prediction.trim().toLowerCase()
   const isFake = normalizedPrediction === 'fake'
@@ -50,70 +50,75 @@ function PredictionResult({ prediction, confidence }: PredictionResultProps) {
 
   const themeClasses = isFake
     ? {
-        container:
-          'border-rose-500/30 bg-rose-500/10 text-rose-50 shadow-rose-950/20',
-        badge: 'bg-rose-500/15 text-rose-100 ring-1 ring-rose-400/30',
-        progress: 'bg-rose-400',
-        track: 'bg-rose-500/15',
+        shell: 'border-rose-200 bg-rose-50 text-slate-900',
+        badge: 'bg-rose-100 text-rose-700 ring-1 ring-rose-200',
+        track: 'bg-rose-100',
+        fill: 'bg-gradient-to-r from-rose-400 to-orange-300',
+        icon: WarningIcon,
       }
-    : {
-        container:
-          'border-emerald-500/30 bg-emerald-500/10 text-emerald-50 shadow-emerald-950/20',
-        badge: 'bg-emerald-500/15 text-emerald-100 ring-1 ring-emerald-400/30',
-        progress: 'bg-emerald-400',
-        track: 'bg-emerald-500/15',
-      }
+    : isReal
+      ? {
+          shell: 'border-emerald-200 bg-emerald-50 text-slate-900',
+          badge: 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200',
+          track: 'bg-emerald-100',
+          fill: 'bg-gradient-to-r from-emerald-400 to-lime-300',
+          icon: CheckIcon,
+        }
+      : {
+          shell: 'border-stone-200 bg-stone-50 text-slate-900',
+          badge: 'bg-stone-100 text-slate-600 ring-1 ring-stone-200',
+          track: 'bg-stone-100',
+          fill: 'bg-gradient-to-r from-violet-400 to-fuchsia-300',
+          icon: CheckIcon,
+        }
 
-  const Icon = isFake ? WarningIcon : CheckIcon
+  const Icon = themeClasses.icon
 
   return (
-    <section
-      className={`w-full rounded-xl border p-5 shadow-2xl backdrop-blur sm:p-6 ${themeClasses.container}`}
-    >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex items-start gap-3">
-          <div className={`mt-0.5 rounded-full p-2 ${themeClasses.badge}`}>
+    <section className={`w-full rounded-2xl border p-5 shadow-[0_20px_60px_rgba(107,70,193,0.08)] sm:p-6 ${themeClasses.shell}`}>
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-4">
+          <div className={`rounded-2xl p-3 ${themeClasses.badge}`}>
             <Icon />
           </div>
 
           <div>
-            <p className="text-sm font-medium uppercase tracking-[0.28em] text-white/70">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
               Prediction
             </p>
             <h3 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
               {displayLabel}
             </h3>
+            <p className="mt-2 max-w-md text-sm leading-6 text-slate-600">
+              The model has classified the submitted article and returned its confidence score below.
+            </p>
           </div>
         </div>
 
-        <div className="rounded-xl border border-white/10 bg-slate-950/20 px-4 py-3 text-left sm:text-right">
-          <p className="text-sm uppercase tracking-[0.24em] text-white/70">
+        <div className="rounded-2xl border border-stone-200 bg-white px-4 py-3 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
             Confidence
           </p>
-          <p className="mt-1 text-2xl font-semibold">{safeConfidence.toFixed(2)}%</p>
+          <p className="mt-1 text-3xl font-semibold tracking-tight">
+            {safeConfidence.toFixed(2)}%
+          </p>
         </div>
       </div>
 
-      <div className="mt-6 space-y-2">
-        <div className="flex items-center justify-between text-sm text-white/80">
-          <span>Confidence score</span>
+      <div className="mt-6 space-y-3">
+        <div className="flex items-center justify-between text-sm text-slate-500">
+          <span>Confidence visualization</span>
           <span>{safeConfidence.toFixed(0)} / 100</span>
         </div>
 
         <div className={`h-3 overflow-hidden rounded-full ${themeClasses.track}`}>
           <div
-            className={`h-full rounded-full transition-all duration-500 ${themeClasses.progress}`}
+            className={`h-full rounded-full transition-all duration-500 ${themeClasses.fill}`}
             style={{ width: `${safeConfidence}%` }}
             aria-hidden="true"
           />
         </div>
       </div>
-
-      {!isFake && !isReal ? (
-        <p className="mt-4 text-sm text-white/70">
-          The model returned a custom label. Showing the raw result while keeping the confidence display.
-        </p>
-      ) : null}
     </section>
   )
 }

@@ -9,6 +9,7 @@ import type { PredictionResponse } from '../types/prediction'
 
 interface PredictionFormProps {
   onResult: (result: PredictionResponse) => void
+  onAnalyze?: (payload: { text: string; result: PredictionResponse }) => void
   onError?: (message: string) => void
 }
 
@@ -28,7 +29,8 @@ function getValidationMessage(text: string): string {
   return ''
 }
 
-function PredictionForm({ onResult, onError }: PredictionFormProps) {
+// PredictionForm collects article text, validates it, and triggers the backend request.
+function PredictionForm({ onResult, onAnalyze, onError }: PredictionFormProps) {
   const [text, setText] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
@@ -51,8 +53,10 @@ function PredictionForm({ onResult, onError }: PredictionFormProps) {
     setErrorMessage('')
 
     try {
-      const result = await predictNews(text)
+      const cleanedText = text.trim()
+      const result = await predictNews(cleanedText)
       onResult(result)
+      onAnalyze?.({ text: cleanedText, result })
     } catch (error: unknown) {
       const message =
         error instanceof PredictionServiceError
@@ -67,15 +71,15 @@ function PredictionForm({ onResult, onError }: PredictionFormProps) {
   }
 
   return (
-    <section className="w-full rounded-xl border border-slate-800/80 bg-slate-950/80 p-5 shadow-2xl shadow-cyan-950/20 backdrop-blur sm:p-6 lg:p-8">
+    <section className="w-full rounded-2xl border border-stone-200 bg-white p-5 shadow-[0_24px_80px_rgba(107,70,193,0.08)] sm:p-6 lg:p-8">
       <div className="mb-6">
-        <p className="text-sm font-medium uppercase tracking-[0.28em] text-cyan-300">
+        <p className="text-sm font-medium uppercase tracking-[0.28em] text-violet-500">
           TruthLens AI
         </p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-50 sm:text-3xl">
+        <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
           Paste a news article to analyze it
         </h2>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400 sm:text-base">
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
           Drop in the article text below and the model will classify it as Fake
           or Real with a confidence score.
         </p>
@@ -85,7 +89,7 @@ function PredictionForm({ onResult, onError }: PredictionFormProps) {
         <div className="space-y-2">
           <label
             htmlFor="prediction-text"
-            className="text-sm font-medium text-slate-200"
+            className="text-sm font-medium text-slate-700"
           >
             Article text
           </label>
@@ -100,17 +104,17 @@ function PredictionForm({ onResult, onError }: PredictionFormProps) {
               }
             }}
             placeholder="Paste the full article or news story here..."
-            className="min-h-56 w-full resize-y rounded-xl border border-slate-700 bg-slate-900/90 px-4 py-4 text-base leading-7 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/30 sm:min-h-64"
+            className="min-h-64 w-full resize-y rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 text-base leading-7 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-violet-300 focus:bg-white focus:ring-4 focus:ring-violet-100 sm:min-h-72"
           />
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-sm text-slate-400">
-            <span className={characterCount < MIN_TEXT_LENGTH ? 'text-amber-300' : 'text-emerald-300'}>
+          <div className="text-sm text-slate-500">
+            <span className={characterCount < MIN_TEXT_LENGTH ? 'text-amber-600' : 'text-emerald-600'}>
               {characterCount}
             </span>
             <span className="mx-1">characters</span>
-            <span className="text-slate-500">|</span>
+            <span className="text-slate-300">|</span>
             <span className="ml-1">
               {remainingCharacters > 0
                 ? `${remainingCharacters} more to reach the minimum`
@@ -121,14 +125,14 @@ function PredictionForm({ onResult, onError }: PredictionFormProps) {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:from-cyan-300 hover:to-blue-400 disabled:cursor-not-allowed disabled:opacity-70"
+            className="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-violet-600 via-fuchsia-500 to-violet-400 px-5 py-3 text-sm font-semibold text-white transition duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-violet-200 disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {isSubmitting ? 'Analyzing...' : 'Analyze'}
+            {isSubmitting ? 'Analyzing...' : 'Analyze Article'}
           </button>
         </div>
 
         {errorMessage ? (
-          <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+          <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {errorMessage}
           </p>
         ) : null}
