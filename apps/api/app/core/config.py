@@ -4,13 +4,32 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-MODEL_DIR = BASE_DIR / "app" / "ml" / "models"
+def find_project_root(start_path: Path | None = None) -> Path:
+    """Find the repository root by walking upward from this file.
+
+    We look for the directory that contains both `apps` and `data`, which makes
+    the result independent of the current working directory.
+    """
+    current_path = (start_path or Path(__file__)).resolve()
+    for candidate in (current_path, *current_path.parents):
+        if (candidate / "apps").is_dir() and (candidate / "data").is_dir():
+            return candidate
+
+    raise RuntimeError(
+        f"Unable to locate the project root starting from {current_path}. "
+        "Expected to find a directory containing both 'apps' and 'data'."
+    )
+
+
+PROJECT_ROOT = find_project_root()
+MODEL_DIR = PROJECT_ROOT / "data" / "models"
 
 
 class Settings(BaseSettings):
     project_name: str = "TruthLens AI API"
-    database_url: str = f"sqlite:///{(BASE_DIR / 'truthlens.db').as_posix()}"
+    project_root: Path = PROJECT_ROOT
+    model_dir: Path = MODEL_DIR
+    database_url: str = f"sqlite:///{(PROJECT_ROOT / 'truthlens.db').as_posix()}"
     tfidf_vectorizer_path: Path = MODEL_DIR / "tfidf_vectorizer.pkl"
     logistic_regression_model_path: Path = MODEL_DIR / "logistic_regression_model.pkl"
 

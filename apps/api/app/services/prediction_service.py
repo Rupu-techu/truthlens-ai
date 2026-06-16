@@ -3,9 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+import logging
 
 import joblib
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -36,13 +39,23 @@ class PredictionService:
 
     def load_artifacts(self) -> None:
         """Load and cache the trained artifacts from disk."""
+        logger.info("Loading TF-IDF vectorizer from %s", self.vectorizer_path)
+        logger.info("Loading logistic regression model from %s", self.model_path)
+
         if not self.vectorizer_path.exists():
-            raise PredictionServiceError(f"TF-IDF vectorizer not found at {self.vectorizer_path}")
+            raise PredictionServiceError(
+                f"TF-IDF vectorizer not found at {self.vectorizer_path}. "
+                "Place tfidf_vectorizer.pkl in data/models and restart the API."
+            )
         if not self.model_path.exists():
-            raise PredictionServiceError(f"Logistic regression model not found at {self.model_path}")
+            raise PredictionServiceError(
+                f"Logistic regression model not found at {self.model_path}. "
+                "Place logistic_regression_model.pkl in data/models and restart the API."
+            )
 
         self._vectorizer = joblib.load(self.vectorizer_path)
         self._model = joblib.load(self.model_path)
+        logger.info("Prediction artifacts loaded successfully.")
 
     def predict(self, text: str) -> PredictionResult:
         """Predict whether a piece of text is fake or real news."""

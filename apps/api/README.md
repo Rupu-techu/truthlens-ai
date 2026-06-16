@@ -2,8 +2,8 @@
 
 The FastAPI backend loads these trained artifacts on startup:
 
-- `app/ml/models/tfidf_vectorizer.pkl`
-- `app/ml/models/logistic_regression_model.pkl`
+- `data/models/tfidf_vectorizer.pkl`
+- `data/models/logistic_regression_model.pkl`
 
 If either file is missing, the application will fail fast during startup with a clear error message.
 
