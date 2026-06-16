@@ -73,6 +73,33 @@ truthlens_ai/
 │
 └── README.md
 ```
+---
+
+## HOME
+
+<img width="1918" height="1078" alt="Screenshot 2026-06-16 233550" src="https://github.com/user-attachments/assets/7f82408c-4a96-4502-8846-3c4f66bf2345" />
+
+
+## ANALYZE
+
+<img width="1918" height="1078" alt="Screenshot 2026-06-16 233644" src="https://github.com/user-attachments/assets/9db9c904-77b4-4d08-9fe6-6c94b0513df4" />
+
+
+## DASHBOARD
+
+
+
+<img width="1918" height="1077" alt="Screenshot 2026-06-16 233651" src="https://github.com/user-attachments/assets/20db88da-4699-4be2-8fe7-e5ef53109b87" />
+
+
+## ABOUT
+
+
+
+<img width="1918" height="1078" alt="Screenshot 2026-06-16 233703" src="https://github.com/user-attachments/assets/a754d337-c148-4cd5-baae-9d3fbc3625c0" />
+
+
+
 
 ---
 
