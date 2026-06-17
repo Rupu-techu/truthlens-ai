@@ -10,7 +10,10 @@ import os
 # CONFIG & CONSTANTS
 # ══════════════════════════════════════════════════════════════════════════════
 # Environment-aware API configurations for deployment compatibility
-API_URL = os.getenv("API_URL", "http://localhost:8000/api/v1/predict")
+API_URL = os.getenv(
+    "API_URL",
+    "https://truthlens-api.onrender.com/api/v1/predict"
+)
 
 st.set_page_config(
     page_title="TruthLens AI",
