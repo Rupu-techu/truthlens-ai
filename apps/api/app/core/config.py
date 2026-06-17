@@ -4,37 +4,43 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-def find_project_root(start_path: Path | None = None) -> Path:
-    """Find the repository root by walking upward from this file.
+# ============================================================================
+# PROJECT PATHS
+# ============================================================================
 
-    We look for the directory that contains both `apps` and `data`, which makes
-    the result independent of the current working directory.
-    """
-    current_path = (start_path or Path(__file__)).resolve()
-    for candidate in (current_path, *current_path.parents):
-        if (candidate / "apps").is_dir() and (candidate / "data").is_dir():
-            return candidate
+# Move up from:
+# apps/api/app/core/config.py
+# to project root
+PROJECT_ROOT = Path(__file__).resolve().parents[4]
 
-    raise RuntimeError(
-        f"Unable to locate the project root starting from {current_path}. "
-        "Expected to find a directory containing both 'apps' and 'data'."
-    )
-
-
-PROJECT_ROOT = find_project_root()
-MODEL_DIR = PROJECT_ROOT / "data" / "models"
+DATA_DIR = PROJECT_ROOT / "data"
+MODEL_DIR = DATA_DIR / "models"
 
 
 class Settings(BaseSettings):
     project_name: str = "TruthLens AI API"
+
     project_root: Path = PROJECT_ROOT
+    data_dir: Path = DATA_DIR
     model_dir: Path = MODEL_DIR
-    database_url: str = f"sqlite:///{(PROJECT_ROOT / 'truthlens.db').as_posix()}"
-    tfidf_vectorizer_path: Path = MODEL_DIR / "tfidf_vectorizer.pkl"
-    logistic_regression_model_path: Path = MODEL_DIR / "logistic_regression_model.pkl"
+
+    database_url: str = (
+        f"sqlite:///{(PROJECT_ROOT / 'truthlens.db').as_posix()}"
+    )
+
+    tfidf_vectorizer_path: Path = (
+        MODEL_DIR / "tfidf_vectorizer.pkl"
+    )
+
+    logistic_regression_model_path: Path = (
+        MODEL_DIR / "logistic_regression_model.pkl"
+    )
+
     cors_allow_origins: list[str] = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:8501",
+        "http://127.0.0.1:8501",
     ]
 
     model_config = SettingsConfigDict(

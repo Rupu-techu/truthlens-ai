@@ -15,11 +15,10 @@ data/processed/
 # TRAINED MODELS
 # =========================
 
-*.pkl
 *.joblib
 *.h5
 
-data/models/
+
 
 # =========================
 # PYTHON CACHE

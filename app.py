@@ -893,7 +893,8 @@ def render_dashboard() -> None:
 
     # Convert session logs into dataframe
     df = pd.DataFrame(history)
-    df.index = range(1, len(df) + 1)
+    # Use pandas RangeIndex to avoid type issues when setting the DataFrame index
+    df.index = pd.RangeIndex(start=1, stop=len(df) + 1)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
