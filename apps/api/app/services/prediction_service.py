@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-import logging
 
 import joblib
 import numpy as np
@@ -20,8 +20,8 @@ class PredictionResult:
 
 
 @dataclass(slots=True)
-class PredictionDebugResult:
-    """Detailed model output used by the Streamlit debug page."""
+class PredictionDetailResult:
+    """Detailed model output used by the Streamlit app for internal checks."""
 
     prediction: str
     confidence: float
@@ -29,7 +29,7 @@ class PredictionDebugResult:
     predicted_index: int
     probabilities: list[float]
     classes: list[Any]
-    label_mapping: dict[str, str]
+    class_map: dict[str, str]
 
 
 class PredictionServiceError(RuntimeError):
@@ -44,12 +44,19 @@ class PredictionService:
         self.model_path = model_path
         self._vectorizer: Any | None = None
         self._model: Any | None = None
-        self._label_mapping: dict[str, str] | None = None
+        self._class_map: dict[str, str] | None = None
 
     @property
     def ready(self) -> bool:
         """Return True when both artifacts have been loaded into memory."""
         return self._vectorizer is not None and self._model is not None
+
+    @property
+    def classes(self) -> list[Any]:
+        """Return the classifier classes as stored by scikit-learn."""
+        if self._model is None:
+            return []
+        return list(getattr(self._model, "classes_", []))
 
     def load_artifacts(self) -> None:
         """Load and cache the trained artifacts from disk."""
@@ -69,39 +76,33 @@ class PredictionService:
 
         self._vectorizer = joblib.load(self.vectorizer_path)
         self._model = joblib.load(self.model_path)
-        self._label_mapping = self._build_label_mapping()
+        self._class_map = self._build_class_map()
+
         logger.info("Prediction artifacts loaded successfully.")
-        logger.info("Model classes: %s", list(getattr(self._model, "classes_", [])))
-        logger.info("Resolved label mapping: %s", self._label_mapping)
+        logger.info("Model classes: %s", self.classes)
+        logger.info("Resolved class map: %s", self._class_map)
 
     @property
-    def label_mapping(self) -> dict[str, str]:
+    def class_map(self) -> dict[str, str]:
         """Return the current raw-class to public-label mapping."""
-        if self._label_mapping is None:
-            self._label_mapping = self._build_label_mapping()
-        return dict(self._label_mapping)
-
-    @property
-    def model_classes(self) -> list[Any]:
-        """Return the classifier classes as stored by scikit-learn."""
-        if self._model is None:
-            return []
-        return list(getattr(self._model, "classes_", []))
+        if self._class_map is None:
+            self._class_map = self._build_class_map()
+        return dict(self._class_map)
 
     def predict(self, text: str) -> PredictionResult:
         """Predict whether a piece of text is fake or real news."""
-        debug_result = self.predict_with_debug(text)
+        detail = self.predict_with_details(text)
         logger.info(
             "Prediction raw_class=%r predicted_index=%s probabilities=%s confidence=%.2f prediction=%s",
-            debug_result.raw_prediction,
-            debug_result.predicted_index,
-            debug_result.probabilities,
-            debug_result.confidence,
-            debug_result.prediction,
+            detail.raw_prediction,
+            detail.predicted_index,
+            detail.probabilities,
+            detail.confidence,
+            detail.prediction,
         )
-        return PredictionResult(prediction=debug_result.prediction, confidence=debug_result.confidence)
+        return PredictionResult(prediction=detail.prediction, confidence=detail.confidence)
 
-    def predict_with_debug(self, text: str) -> PredictionDebugResult:
+    def predict_with_details(self, text: str) -> PredictionDetailResult:
         """Return the public prediction together with raw model diagnostics."""
         if not self.ready:
             raise PredictionServiceError("Prediction service is not ready. Model artifacts were not loaded.")
@@ -110,41 +111,40 @@ class PredictionService:
         if not normalized_text:
             raise ValueError("text must not be empty")
 
-        # The trained vectorizer turns raw text into the feature space expected by the classifier.
         features = self._vectorizer.transform([normalized_text])
         probabilities = self._model.predict_proba(features)[0]
-        classes = list(getattr(self._model, "classes_", []))
+        classes = self.classes
 
         predicted_index = int(np.argmax(probabilities))
         predicted_class = classes[predicted_index] if classes else predicted_index
         confidence = round(float(probabilities[predicted_index]) * 100, 2)
         prediction = self._normalize_label(predicted_class)
-        mapping = self.label_mapping
+        class_map = self.class_map
 
         logger.info(
-            "Detailed model output raw_prediction=%r probability_array=%s label_mapping=%s",
+            "Detailed model output raw_prediction=%r probability_array=%s class_map=%s",
             predicted_class,
             np.round(probabilities, 6).tolist(),
-            mapping,
+            class_map,
         )
 
-        return PredictionDebugResult(
+        return PredictionDetailResult(
             prediction=prediction,
             confidence=confidence,
             raw_prediction=predicted_class,
             predicted_index=predicted_index,
             probabilities=np.round(probabilities, 6).tolist(),
             classes=classes,
-            label_mapping=mapping,
+            class_map=class_map,
         )
 
     @staticmethod
     def _normalize_label(raw_label: Any) -> str:
         """Convert the model's native label into the public Fake/Real contract."""
         if isinstance(raw_label, str):
-            lowered_label = raw_label.strip().lower()
-            if lowered_label in {"fake", "real"}:
-                return lowered_label.capitalize()
+            lowered = raw_label.strip().lower()
+            if lowered in {"fake", "real"}:
+                return lowered.capitalize()
 
         if raw_label in {1, "1", True}:
             return "Real"
@@ -153,11 +153,9 @@ class PredictionService:
 
         raise PredictionServiceError(f"Unsupported model label: {raw_label!r}")
 
-    def _build_label_mapping(self) -> dict[str, str]:
+    def _build_class_map(self) -> dict[str, str]:
         """Create a human-readable mapping from raw model labels to the public contract."""
-        classes = list(getattr(self._model, "classes_", []))
         mapping: dict[str, str] = {}
-        for raw_label in classes:
-            normalized = self._normalize_label(raw_label)
-            mapping[str(raw_label)] = normalized
+        for raw_label in self.classes:
+            mapping[str(raw_label)] = self._normalize_label(raw_label)
         return mapping
