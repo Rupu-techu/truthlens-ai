@@ -19,6 +19,19 @@ class PredictionResult:
     confidence: float
 
 
+@dataclass(slots=True)
+class PredictionDebugResult:
+    """Detailed model output used by the Streamlit debug page."""
+
+    prediction: str
+    confidence: float
+    raw_prediction: Any
+    predicted_index: int
+    probabilities: list[float]
+    classes: list[Any]
+    label_mapping: dict[str, str]
+
+
 class PredictionServiceError(RuntimeError):
     """Raised when the model artifacts cannot be loaded or used safely."""
 
@@ -31,6 +44,7 @@ class PredictionService:
         self.model_path = model_path
         self._vectorizer: Any | None = None
         self._model: Any | None = None
+        self._label_mapping: dict[str, str] | None = None
 
     @property
     def ready(self) -> bool:
@@ -55,10 +69,40 @@ class PredictionService:
 
         self._vectorizer = joblib.load(self.vectorizer_path)
         self._model = joblib.load(self.model_path)
+        self._label_mapping = self._build_label_mapping()
         logger.info("Prediction artifacts loaded successfully.")
+        logger.info("Model classes: %s", list(getattr(self._model, "classes_", [])))
+        logger.info("Resolved label mapping: %s", self._label_mapping)
+
+    @property
+    def label_mapping(self) -> dict[str, str]:
+        """Return the current raw-class to public-label mapping."""
+        if self._label_mapping is None:
+            self._label_mapping = self._build_label_mapping()
+        return dict(self._label_mapping)
+
+    @property
+    def model_classes(self) -> list[Any]:
+        """Return the classifier classes as stored by scikit-learn."""
+        if self._model is None:
+            return []
+        return list(getattr(self._model, "classes_", []))
 
     def predict(self, text: str) -> PredictionResult:
         """Predict whether a piece of text is fake or real news."""
+        debug_result = self.predict_with_debug(text)
+        logger.info(
+            "Prediction raw_class=%r predicted_index=%s probabilities=%s confidence=%.2f prediction=%s",
+            debug_result.raw_prediction,
+            debug_result.predicted_index,
+            debug_result.probabilities,
+            debug_result.confidence,
+            debug_result.prediction,
+        )
+        return PredictionResult(prediction=debug_result.prediction, confidence=debug_result.confidence)
+
+    def predict_with_debug(self, text: str) -> PredictionDebugResult:
+        """Return the public prediction together with raw model diagnostics."""
         if not self.ready:
             raise PredictionServiceError("Prediction service is not ready. Model artifacts were not loaded.")
 
@@ -74,10 +118,25 @@ class PredictionService:
         predicted_index = int(np.argmax(probabilities))
         predicted_class = classes[predicted_index] if classes else predicted_index
         confidence = round(float(probabilities[predicted_index]) * 100, 2)
-
-        # Normalize the model output into the API contract expected by the frontend.
         prediction = self._normalize_label(predicted_class)
-        return PredictionResult(prediction=prediction, confidence=confidence)
+        mapping = self.label_mapping
+
+        logger.info(
+            "Detailed model output raw_prediction=%r probability_array=%s label_mapping=%s",
+            predicted_class,
+            np.round(probabilities, 6).tolist(),
+            mapping,
+        )
+
+        return PredictionDebugResult(
+            prediction=prediction,
+            confidence=confidence,
+            raw_prediction=predicted_class,
+            predicted_index=predicted_index,
+            probabilities=np.round(probabilities, 6).tolist(),
+            classes=classes,
+            label_mapping=mapping,
+        )
 
     @staticmethod
     def _normalize_label(raw_label: Any) -> str:
@@ -93,3 +152,12 @@ class PredictionService:
             return "Fake"
 
         raise PredictionServiceError(f"Unsupported model label: {raw_label!r}")
+
+    def _build_label_mapping(self) -> dict[str, str]:
+        """Create a human-readable mapping from raw model labels to the public contract."""
+        classes = list(getattr(self._model, "classes_", []))
+        mapping: dict[str, str] = {}
+        for raw_label in classes:
+            normalized = self._normalize_label(raw_label)
+            mapping[str(raw_label)] = normalized
+        return mapping

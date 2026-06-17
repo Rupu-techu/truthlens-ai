@@ -27,11 +27,25 @@ PAGE_HOME = "Home"
 PAGE_ANALYZER = "News Analyzer"
 PAGE_DASHBOARD = "Dashboard"
 PAGE_ABOUT = "About"
-PAGES = [PAGE_HOME, PAGE_ANALYZER, PAGE_DASHBOARD, PAGE_ABOUT]
+PAGE_DEBUG = "Debug"
+PAGES = [PAGE_HOME, PAGE_ANALYZER, PAGE_DASHBOARD, PAGE_ABOUT, PAGE_DEBUG]
 DATASET_REAL_COUNT = 21211
 DATASET_FAKE_COUNT = 23478
 DATASET_TOTAL = DATASET_REAL_COUNT + DATASET_FAKE_COUNT
 MAX_INPUT_CHARS = 5000
+ANALYZER_PLACEHOLDER = "Paste a complete news article or headline here..."
+SAMPLE_FAKE_ARTICLE = (
+    "Donald Trump Sends Out Embarrassing New Year's Eve Message; This is Disturbing. "
+    "Donald Trump just couldn't wish all Americans a Happy New Year and leave it at that."
+)
+SAMPLE_REAL_ARTICLE = (
+    "As U.S. budget fight looms, Republicans flip their fiscal script. "
+    "WASHINGTON (Reuters) - The head of a conservative Republican faction in the U.S. Congress "
+    "urged budget restraint in 2018."
+)
+SAMPLE_NEUTRAL_HEADLINE = (
+    "City council approves new transit expansion plan after public hearing."
+)
 
 
 @dataclass(slots=True)
@@ -387,9 +401,18 @@ def load_deployment_status() -> DeploymentStatus:
     try:
         service = load_prediction_service()
         prediction_service_ready = service.ready
-        sample_result = service.predict(SMOKE_TEST_TEXT)
-        sample_prediction = sample_result.prediction
-        sample_confidence = sample_result.confidence
+        LOGGER.info("Resolved model label mapping at startup: %s", service.label_mapping)
+        sample_debug = service.predict_with_debug(SMOKE_TEST_TEXT)
+        sample_prediction = sample_debug.prediction
+        sample_confidence = sample_debug.confidence
+        LOGGER.info(
+            "Startup smoke test raw_class=%r probability_array=%s predicted_class=%r prediction=%s confidence=%.2f",
+            sample_debug.raw_prediction,
+            sample_debug.probabilities,
+            sample_debug.classes[sample_debug.predicted_index] if sample_debug.classes else sample_debug.raw_prediction,
+            sample_debug.prediction,
+            sample_debug.confidence,
+        )
     except Exception as exc:  # noqa: BLE001
         service_error = str(exc)
         LOGGER.exception("Deployment validation failed.")
@@ -417,12 +440,20 @@ def initialize_session_state() -> None:
     st.session_state.setdefault("truthlens_history", [])
     st.session_state.setdefault("truthlens_latest_result", None)
     st.session_state.setdefault("truthlens_article_input", "")
+    st.session_state.setdefault("truthlens_debug_input", SAMPLE_FAKE_ARTICLE)
+    st.session_state.setdefault("truthlens_debug_result", None)
+    st.session_state.setdefault("truthlens_debug_validation", [])
     st.session_state.setdefault("truthlens_last_error", None)
 
 
 def set_active_page(page: str) -> None:
     """Update the visible page without changing any prediction state."""
     st.session_state.truthlens_page = page
+
+
+def load_example_text(text: str) -> None:
+    """Populate the analyzer text area with a prebuilt example."""
+    st.session_state.truthlens_article_input = text
 
 
 def get_active_page() -> str:
@@ -836,7 +867,7 @@ def render_header(status: DeploymentStatus) -> None:
             )
 
         with right:
-            nav_columns = st.columns(4)
+            nav_columns = st.columns(len(PAGES))
             current_page = get_active_page()
             for column, page in zip(nav_columns, PAGES, strict=True):
                 with column:
@@ -1018,14 +1049,14 @@ def render_home_page(status: DeploymentStatus) -> None:
         ("Analyze News", "The trained text classifier processes the content."),
         ("View Prediction", "Review the label, confidence, and status message."),
     ]
-    st.markdown('<div style="counter-reset: step;"></div>', unsafe_allow_html=True)
     step_columns = st.columns(3)
-    for column, (title, copy) in zip(step_columns, steps, strict=True):
+    for index, (column, (title, copy)) in enumerate(zip(step_columns, steps, strict=True), start=1):
         with column:
             st.markdown(
                 f"""
                 <div class="truthlens-card">
                     <div class="truthlens-step">
+                        <div class="truthlens-badge" style="margin-bottom:0.8rem;">Step {index}</div>
                         <h4 class="truthlens-card-title" style="margin-top:0;">{title}</h4>
                         <p class="truthlens-card-copy">{copy}</p>
                     </div>
@@ -1130,7 +1161,7 @@ def render_prediction_result_card(prediction: str, confidence: float) -> None:
 
 def render_analyzer_page(status: DeploymentStatus) -> None:
     """Render the main prediction surface."""
-    left_column, right_column = st.columns([1.15, 0.85], vertical_alignment="top")
+    left_column, right_column = st.columns([1.18, 0.82], vertical_alignment="top")
 
     with left_column:
         st.markdown(
@@ -1138,10 +1169,10 @@ def render_analyzer_page(status: DeploymentStatus) -> None:
             <div class="truthlens-section">
                 <div class="truthlens-section-title">
                     <span class="truthlens-eyebrow">News Analyzer</span>
-                    <h3 class="truthlens-heading">Paste an article and analyze it instantly</h3>
+                    <h3 class="truthlens-heading">Paste a news article, then click Analyze</h3>
                     <p class="truthlens-copy">
-                        The analyzer keeps the interface spacious and calm so the result feels like a
-                        real product interaction instead of a technical demo.
+                        Step 1 is to paste a full article or headline. Step 2 is to analyze it.
+                        Step 3 is to review the prediction and confidence score.
                     </p>
                 </div>
             </div>
@@ -1152,15 +1183,24 @@ def render_analyzer_page(status: DeploymentStatus) -> None:
         with st.container(border=True):
             text_value = st.text_area(
                 "Article text",
-                placeholder="Paste a news article, social post, headline thread, or article excerpt here...",
-                height=280,
+                placeholder=ANALYZER_PLACEHOLDER,
+                height=300,
                 label_visibility="collapsed",
                 max_chars=MAX_INPUT_CHARS,
                 key="truthlens_article_input",
             )
             st.caption(f"{len(text_value or ''):,}/{MAX_INPUT_CHARS:,} characters")
 
-            analyze_pressed = st.button("Analyze News", type="primary", use_container_width=True)
+            st.markdown(
+                """
+                <div class="truthlens-card-copy" style="margin-top:0.35rem;">
+                    Predictions are based on textual patterns and should be used as assistance rather than absolute truth.
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            analyze_pressed = st.button("Analyze", type="primary", use_container_width=True)
             if analyze_pressed:
                 if not text_value.strip():
                     st.error("Please paste some news text before analyzing.")
@@ -1193,62 +1233,57 @@ def render_analyzer_page(status: DeploymentStatus) -> None:
                     <p class="truthlens-card-label">Prediction</p>
                     <h4 class="truthlens-card-title">Your result will appear here</h4>
                     <p class="truthlens-card-copy">
-                        After you press Analyze News, the app will display a prediction card with
-                        the model label, confidence percentage, and a short status message.
+                        After you press Analyze, the app will display a prediction card with the
+                        model label, confidence percentage, and a short status message.
                     </p>
                     """,
                     unsafe_allow_html=True,
                 )
 
     with right_column:
-        st.markdown(
-            """
-            <div class="truthlens-section">
-                <div class="truthlens-section-title">
-                    <span class="truthlens-eyebrow">Live View</span>
-                    <h3 class="truthlens-heading">Response summary</h3>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
         with st.container(border=True):
             st.markdown(
                 """
-                <p class="truthlens-card-label">Input guidance</p>
+                <p class="truthlens-card-label">Example Inputs</p>
+                <h4 class="truthlens-card-title">Try a sample article</h4>
+                <p class="truthlens-card-copy">
+                    Use one of these examples to quickly see how the model responds before testing
+                    your own content.
+                </p>
+                """,
+                unsafe_allow_html=True,
+            )
+            if st.button("Load fake-news style example", use_container_width=True, on_click=load_example_text, args=(SAMPLE_FAKE_ARTICLE,)):
+                st.toast("Fake-news example loaded")
+            if st.button("Load real-news style example", use_container_width=True, on_click=load_example_text, args=(SAMPLE_REAL_ARTICLE,)):
+                st.toast("Real-news example loaded")
+            if st.button("Load headline example", use_container_width=True, on_click=load_example_text, args=(SAMPLE_NEUTRAL_HEADLINE,)):
+                st.toast("Headline example loaded")
+
+        st.write("")
+        with st.container(border=True):
+            st.markdown(
+                """
+                <p class="truthlens-card-label">How to use</p>
+                <h4 class="truthlens-card-title">Simple flow</h4>
+                <div class="truthlens-workflow" style="margin-top:0.8rem;">
+                    <span>1. Paste a news article.</span>
+                    <span>2. Click Analyze.</span>
+                    <span>3. Review prediction and confidence.</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        st.write("")
+        with st.container(border=True):
+            st.markdown(
+                """
+                <p class="truthlens-card-label">Input Guidance</p>
                 <h4 class="truthlens-card-title">What works best</h4>
                 <p class="truthlens-card-copy">
-                    Longer article excerpts, body text, or multi-sentence news content usually give
-                    the classifier a more useful signal than a single headline.
-                </p>
-                """,
-                unsafe_allow_html=True,
-            )
-
-        st.write("")
-        with st.container(border=True):
-            st.markdown(
-                """
-                <p class="truthlens-card-label">Status Message</p>
-                <h4 class="truthlens-card-title">Model is ready to respond</h4>
-                <p class="truthlens-card-copy">
-                    The current runtime uses the existing prediction service and reads the trained
-                    vectorizer and classifier from the repository artifacts.
-                </p>
-                """,
-                unsafe_allow_html=True,
-            )
-
-        st.write("")
-        with st.container(border=True):
-            st.markdown(
-                """
-                <p class="truthlens-card-label">Current Runtime</p>
-                <h4 class="truthlens-card-title">Deployment notes</h4>
-                <p class="truthlens-card-copy">
-                    The app is designed to feel product-like while still showing the essential
-                    runtime checks for the model, backend, and frontend.
+                    Longer article excerpts usually give the classifier a stronger signal than a
+                    single headline.
                 </p>
                 """,
                 unsafe_allow_html=True,
@@ -1601,6 +1636,183 @@ def render_about_page(status: DeploymentStatus) -> None:
                 st.metric(label, value)
 
 
+def render_debug_page(status: DeploymentStatus) -> None:
+    """Render model diagnostics for raw outputs and label mapping verification."""
+    st.markdown(
+        """
+        <div class="truthlens-section">
+            <div class="truthlens-section-title">
+                <span class="truthlens-eyebrow">Debug</span>
+                <h3 class="truthlens-heading">Inspect the prediction pipeline</h3>
+                <p class="truthlens-copy">
+                    This page shows raw probabilities, the predicted class, the public label
+                    mapping, and a couple of known validation examples from the dataset.
+                </p>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if not status.prediction_service_ready:
+        st.error(status.error or "Prediction service is not ready yet.")
+        return
+
+    service = load_prediction_service()
+    mapping = service.label_mapping
+
+    summary_columns = st.columns(4)
+    summary_items = [
+        ("Model Ready", render_bool(status.prediction_service_ready)),
+        ("Backend Health", render_bool(status.backend.health_ok)),
+        ("Raw Classes", ", ".join(str(value) for value in service.model_classes) or "n/a"),
+        ("Label Mapping", ", ".join(f"{key} -> {value}" for key, value in mapping.items()) or "n/a"),
+    ]
+    for column, (label, value) in zip(summary_columns, summary_items, strict=True):
+        with column:
+            st.metric(label, value)
+
+    st.write("")
+    left_column, right_column = st.columns([1.05, 0.95], vertical_alignment="top")
+
+    with left_column:
+        with st.container(border=True):
+            st.markdown(
+                """
+                <p class="truthlens-card-label">Custom Debug Input</p>
+                <h4 class="truthlens-card-title">Inspect a single article</h4>
+                <p class="truthlens-card-copy">
+                    Use this input to check the raw model output, probability array, and predicted
+                    class for any article you want to study.
+                </p>
+                """,
+                unsafe_allow_html=True,
+            )
+            custom_input = st.text_area(
+                "Debug input",
+                placeholder=ANALYZER_PLACEHOLDER,
+                height=220,
+                label_visibility="collapsed",
+                key="truthlens_debug_input",
+            )
+            run_custom = st.button("Run Debug Prediction", type="primary", use_container_width=True)
+            if run_custom:
+                if not custom_input.strip():
+                    st.error("Please enter some text before running the debug prediction.")
+                else:
+                    try:
+                        debug_result = service.predict_with_debug(custom_input)
+                        st.session_state.truthlens_debug_result = {
+                            "prediction": debug_result.prediction,
+                            "confidence": debug_result.confidence,
+                            "raw_prediction": debug_result.raw_prediction,
+                            "predicted_index": debug_result.predicted_index,
+                            "probabilities": debug_result.probabilities,
+                            "classes": [str(value) for value in debug_result.classes],
+                            "label_mapping": debug_result.label_mapping,
+                        }
+                    except Exception as exc:  # noqa: BLE001
+                        st.session_state.truthlens_last_error = str(exc)
+                        st.error(f"Unable to debug the prediction: {exc}")
+
+            debug_result = st.session_state.truthlens_debug_result
+            if debug_result:
+                st.write("")
+                with st.container(border=True):
+                    st.markdown(
+                        f"""
+                        <p class="truthlens-card-label">Raw Model Output</p>
+                        <h4 class="truthlens-card-title">{debug_result["prediction"]}</h4>
+                        <p class="truthlens-card-copy">
+                            Confidence: {float(debug_result["confidence"]):.2f}%<br>
+                            Raw class: {debug_result["raw_prediction"]}<br>
+                            Predicted index: {debug_result["predicted_index"]}
+                        </p>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                    st.code(
+                        "probabilities = "
+                        + repr(debug_result["probabilities"])
+                        + "\nclasses = "
+                        + repr(debug_result["classes"])
+                        + "\nlabel_mapping = "
+                        + repr(debug_result["label_mapping"]),
+                        language="text",
+                    )
+
+    with right_column:
+        with st.container(border=True):
+            st.markdown(
+                """
+                <p class="truthlens-card-label">Known Samples</p>
+                <h4 class="truthlens-card-title">Validation against dataset examples</h4>
+                <p class="truthlens-card-copy">
+                    These examples come from the saved dataset and help confirm that the model
+                    labels are interpreted consistently.
+                </p>
+                """,
+                unsafe_allow_html=True,
+            )
+            if st.button("Run Built-in Validation", use_container_width=True):
+                validation_runs: list[dict[str, Any]] = []
+                for label, text in [("Fake", SAMPLE_FAKE_ARTICLE), ("Real", SAMPLE_REAL_ARTICLE)]:
+                    debug_result = service.predict_with_debug(text)
+                    validation_runs.append(
+                        {
+                            "expected": label,
+                            "prediction": debug_result.prediction,
+                            "confidence": debug_result.confidence,
+                            "raw_prediction": debug_result.raw_prediction,
+                            "probabilities": debug_result.probabilities,
+                            "raw_class": debug_result.classes[debug_result.predicted_index]
+                            if debug_result.classes
+                            else debug_result.raw_prediction,
+                            "passed": debug_result.prediction == label,
+                        }
+                    )
+                st.session_state.truthlens_debug_validation = validation_runs
+
+            validation_runs = st.session_state.truthlens_debug_validation
+            if validation_runs:
+                for run in validation_runs:
+                    with st.container(border=True):
+                        st.markdown(
+                            f"""
+                            <p class="truthlens-card-label">Expected {run["expected"]}</p>
+                            <h4 class="truthlens-card-title">{run["prediction"]} ({run["confidence"]:.2f}%)</h4>
+                            <p class="truthlens-card-copy">
+                                Raw class: {run["raw_class"]}<br>
+                                Probabilities: {run["probabilities"]}<br>
+                                Match: {"Yes" if run["passed"] else "No"}
+                            </p>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+            else:
+                st.info("Run the built-in validation to check one fake and one real example.")
+
+        st.write("")
+        with st.container(border=True):
+            st.markdown(
+                """
+                <p class="truthlens-card-label">Mapping Check</p>
+                <h4 class="truthlens-card-title">Current interpretation</h4>
+                <p class="truthlens-card-copy">
+                    The saved artifacts currently map <strong>0 -> Fake</strong> and
+                    <strong>1 -> Real</strong>. The app logs this mapping during startup and exposes
+                    the raw probability array on this page.
+                </p>
+                """,
+                unsafe_allow_html=True,
+            )
+            if status.sample_prediction is not None and status.sample_confidence is not None:
+                st.metric("Startup smoke test", f"{status.sample_prediction} ({status.sample_confidence:.2f}%)")
+
+        if status.backend.error:
+            st.warning(status.backend.error)
+
+
 def render_page(status: DeploymentStatus) -> None:
     """Dispatch to the selected page."""
     current_page = get_active_page()
@@ -1611,7 +1823,10 @@ def render_page(status: DeploymentStatus) -> None:
     elif current_page == PAGE_DASHBOARD:
         render_dashboard_page(status)
     else:
-        render_about_page(status)
+        if current_page == PAGE_ABOUT:
+            render_about_page(status)
+        else:
+            render_debug_page(status)
 
 
 def main() -> None:
