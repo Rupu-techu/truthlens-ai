@@ -77,26 +77,33 @@ truthlens_ai/
 
 ## HOME
 
-<img width="1918" height="1078" alt="Screenshot 2026-06-16 233550" src="https://github.com/user-attachments/assets/7f82408c-4a96-4502-8846-3c4f66bf2345" />
+<img width="1918" height="1078" alt="Screenshot 2026-06-17 144644" src="https://github.com/user-attachments/assets/fb345e98-06e3-4b77-a3fe-9fb084b43cd7" />
+
 
 
 ## ANALYZE
 
-<img width="1918" height="1078" alt="Screenshot 2026-06-16 233644" src="https://github.com/user-attachments/assets/9db9c904-77b4-4d08-9fe6-6c94b0513df4" />
+<img width="1918" height="1077" alt="Screenshot 2026-06-17 144744" src="https://github.com/user-attachments/assets/069ecf20-e6c0-4b8e-9d92-27060546dbc2" />
+
+
+<img width="1918" height="1078" alt="Screenshot 2026-06-17 144623" src="https://github.com/user-attachments/assets/c25787a4-44e4-41dd-9316-c6979daa497f" />
 
 
 ## DASHBOARD
 
+<img width="1918" height="1078" alt="Screenshot 2026-06-17 144814" src="https://github.com/user-attachments/assets/c5e09fd0-a761-4ff6-9fb6-a58581eebeb3" />
+
+<img width="1918" height="1078" alt="Screenshot 2026-06-17 144807" src="https://github.com/user-attachments/assets/425e02e0-3d14-4705-afea-0789c82dfda8" />
 
 
-<img width="1918" height="1077" alt="Screenshot 2026-06-16 233651" src="https://github.com/user-attachments/assets/20db88da-4699-4be2-8fe7-e5ef53109b87" />
 
 
 ## ABOUT
 
 
+<img width="1918" height="1077" alt="Screenshot 2026-06-17 144749" src="https://github.com/user-attachments/assets/ae8d734a-a673-4c9f-baee-61c764e9352e" />
 
-<img width="1918" height="1078" alt="Screenshot 2026-06-16 233703" src="https://github.com/user-attachments/assets/a754d337-c148-4cd5-baae-9d3fbc3625c0" />
+
 
 
 
