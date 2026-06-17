@@ -12,9 +12,8 @@ import os
 # Environment-aware API configurations for deployment compatibility
 API_URL = os.getenv(
     "API_URL",
-    "https://truthlens-api.onrender.com/api/v1/predict"
+    "https://truthlens-ai-fv6j.onrender.com/api/v1/predict"
 )
-
 st.set_page_config(
     page_title="TruthLens AI",
     page_icon="🔍",
